@@ -1,0 +1,10 @@
+discord.py
+requests
+pyautogui
+colorama
+tls-client
+websocket-client
+opencv-python
+typing_extensions
+sounddevice
+scipy
