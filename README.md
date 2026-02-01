@@ -258,7 +258,7 @@
 1. **Clone or Download**
    ```bash
    git clone <repository-url>
-   cd "discord RAT"
+   cd "ASTRO-NEXUS-Raider"
    ```
 
 2. **Install Dependencies**
