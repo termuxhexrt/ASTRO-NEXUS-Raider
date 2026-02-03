@@ -1,0 +1,98 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# ASTRO-NEXUS OVERDRIVE 2.0 - REQUIREMENTS
+# Professional Elite Discord Raid Suite Dependencies
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ═══ CORE DISCORD LIBRARIES ═══
+discord.py>=2.3.2              # Discord API wrapper (optional, for bot features)
+websocket-client>=1.6.4        # WebSocket connections for real-time features
+
+# ═══ HTTP & NETWORKING ═══
+requests>=2.31.0               # HTTP requests library
+tls-client>=0.2.2              # TLS fingerprinting bypass for stealth
+urllib3>=2.0.7                 # HTTP client (dependency for requests)
+
+# ═══ TERMINAL & UI ═══
+colorama>=0.4.6                # Cross-platform colored terminal output
+pyautogui>=0.9.54              # GUI automation (for button clicks)
+
+# ═══ DATA PROCESSING ═══
+typing-extensions>=4.8.0       # Type hints support
+uuid>=1.30                     # Unique identifier generation
+# faker>=22.0.0                # Fake data generation (for account creation)
+
+# ═══ AUDIO & VOICE ═══
+sounddevice>=0.4.6             # Audio playback for soundboard features
+scipy>=1.11.4                  # Scientific computing (audio processing)
+
+# ═══ SYSTEM MONITORING ═══
+psutil>=5.9.6                  # System and process utilities
+opencv-python>=4.8.1.78        # Computer vision (for advanced features)
+
+# ═══ NEW IN VERSION 2.0 ═══
+
+# Advanced Utilities
+python-dateutil>=2.8.2         # Date/time utilities
+pytz>=2023.3                   # Timezone support
+
+# Performance & Monitoring
+memory-profiler>=0.61.0        # Memory usage profiling (optional)
+
+# Security & Encryption
+cryptography>=41.0.7           # Encryption/decryption utilities
+pycryptodome>=3.19.0           # Additional crypto functions
+
+# Data Export & Persistence
+openpyxl>=3.1.2                # Excel file support (for advanced exports)
+pandas>=2.1.4                  # Data analysis (optional, for statistics)
+
+# Network & Proxy
+pysocks>=1.7.1                 # SOCKS proxy support
+aiohttp>=3.9.1                 # Async HTTP client (for advanced features)
+
+# Logging & Analytics
+python-json-logger>=2.0.7      # JSON logging format
+loguru>=0.7.2                  # Advanced logging (optional)
+
+# ═══ OPTIONAL DEPENDENCIES ═══
+# Uncomment if you need these features:
+
+# ═══ IMAGE PROCESSING & VISUALS ═══
+pillow>=10.1.0                 # Image processing (Required for !ss)
+pyscreeze>=0.1.30              # Screenshot dependency (Required for !ss)
+beautifulsoup4>=4.12.2       # HTML parsing (for scraping)
+# selenium>=4.15.2             # Browser automation (advanced)
+# playwright>=1.40.0           # Modern browser automation
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# INSTALLATION INSTRUCTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Standard Installation:
+#   pip install -r requirements.txt
+#
+# With Optional Dependencies:
+#   pip install -r requirements.txt pillow beautifulsoup4
+#
+# Upgrade All:
+#   pip install --upgrade -r requirements.txt
+#
+# Install Specific Version:
+#   pip install -r requirements.txt --no-cache-dir
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# TROUBLESHOOTING
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# If installation fails:
+#   1. Update pip: python -m pip install --upgrade pip
+#   2. Install build tools: pip install wheel setuptools
+#   3. Try with --user flag: pip install -r requirements.txt --user
+#   4. Run as admin (Windows) or use sudo (Linux/Mac)
+#
+# For specific library issues:
+#   - opencv-python: May need Visual C++ Redistributable on Windows
+#   - sounddevice: May need PortAudio library
+#   - cryptography: May need Rust compiler on some systems
+#
+# ═══════════════════════════════════════════════════════════════════════════════
