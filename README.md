@@ -189,7 +189,7 @@ This platform is the result of **2+ years of development**, incorporating feedba
 
 ```bash
 # Step 1: Clone the repository
-git clone https://github.com/yourusername/ASTRO-NEXUS.git
+git clone https://github.com/termuxhexrt/ASTRO-NEXUS.git
 cd ASTRO-NEXUS
 
 # Step 2: Run the script (auto-installs dependencies)
@@ -246,7 +246,7 @@ That's it! The tool will automatically:
 
 ```powershell
 # Method 1: Using Git (Recommended)
-git clone https://github.com/yourusername/ASTRO-NEXUS.git
+git clone https://github.com/termuxhexrt/ASTRO-NEXUS.git
 cd ASTRO-NEXUS
 python ASTRO-NEXUS.py
 
@@ -269,19 +269,19 @@ python ASTRO-NEXUS.py
 # Ubuntu/Debian
 sudo apt update && sudo apt upgrade -y
 sudo apt install git python3 python3-pip -y
-git clone https://github.com/yourusername/ASTRO-NEXUS.git
+git clone https://github.com/termuxhexrt/ASTRO-NEXUS.git
 cd ASTRO-NEXUS
 python3 ASTRO-NEXUS.py
 
 # Fedora/RHEL
 sudo dnf install git python3 python3-pip -y
-git clone https://github.com/yourusername/ASTRO-NEXUS.git
+git clone https://github.com/termuxhexrt/ASTRO-NEXUS.git
 cd ASTRO-NEXUS
 python3 ASTRO-NEXUS.py
 
 # Arch Linux
 sudo pacman -S git python python-pip
-git clone https://github.com/yourusername/ASTRO-NEXUS.git
+git clone https://github.com/termuxhexrt/ASTRO-NEXUS.git
 cd ASTRO-NEXUS
 python ASTRO-NEXUS.py
 ```
@@ -296,7 +296,7 @@ python ASTRO-NEXUS.py
 brew install python3 git
 
 # Clone and run
-git clone https://github.com/yourusername/ASTRO-NEXUS.git
+git clone https://github.com/termuxhexrt/ASTRO-NEXUS.git
 cd ASTRO-NEXUS
 python3 ASTRO-NEXUS.py
 ```
@@ -311,7 +311,7 @@ pkg update && pkg upgrade -y
 pkg install python git -y
 
 # Clone and run
-git clone https://github.com/yourusername/ASTRO-NEXUS.git
+git clone https://github.com/termuxhexrt/ASTRO-NEXUS.git
 cd ASTRO-NEXUS
 python ASTRO-NEXUS.py
 ```
@@ -2062,7 +2062,7 @@ By using ASTRO-NEXUS, you acknowledge:
 
 ```bash
 # Fork and clone
-git clone https://github.com/yourusername/ASTRO-NEXUS.git
+git clone https://github.com/termuxhexrt/ASTRO-NEXUS.git
 cd ASTRO-NEXUS
 
 # Create feature branch
@@ -2187,7 +2187,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY.
 🌟 If you find this useful, give us a star on GitHub! 🌟
 ```
 
-[![GitHub Stars](https://img.shields.io/github/stars/yourusername/ASTRO-NEXUS?style=social)](https://github.com/yourusername/ASTRO-NEXUS)
+[![GitHub Stars](https://img.shields.io/github/stars/termuxhexrt/ASTRO-NEXUS?style=social)](https://github.com/termuxhexrt/ASTRO-NEXUS)
 
 ---
 
